@@ -1,0 +1,134 @@
+#! /bin/sh
+##
+## node-annotation --
+##
+##   An IPAM CNI-plugin that uses annotations on the K8s node object
+##   https://github.com/Nordix/ipam-node-annotation
+##
+## Commands;
+##
+
+prg=$(basename $0)
+dir=$(dirname $0); dir=$(readlink -f $dir)
+tmp=/tmp/${prg}_$$
+
+die() {
+    echo "ERROR: $*" >&2
+    rm -rf $tmp
+    exit 1
+}
+help() {
+    grep '^##' $0 | cut -c3-
+    rm -rf $tmp
+    exit 0
+}
+echo "$1" | grep -qi "^help\|-h" && help
+
+read_config() {
+	test "$read_config" = "yes" && return 0
+	# Set defaults
+	nextipam=$dir/host-local
+
+	local cfg=/etc/cni/node-annotation.conf
+	test -n "$NODE_ANNOTATION_CFG" && cfg=$NODE_ANNOTATION_CFG
+	test -r $cfg || return 0
+	eval $(jq -r 'to_entries|.[]|.key + "=" + .value' < $cfg)
+	test -n "$kubeconfig" && export KUBECONFIG=$kubeconfig
+	read_config=yes
+}
+get_nodes() {
+	test -s $tmp/nodes && return 0
+	mkdir -p $tmp
+	kubectl get nodes -o json > $tmp/nodes 2> /dev/null || \
+		cmd_error_quit "kubectl get nodes"
+}
+
+##   ipam
+##     Act as an ipam CNI-plugin. This is the default command
+cmd_ipam() {
+	mkdir -p $tmp
+	cat > $tmp/stdin
+	local a=$(cat $tmp/stdin | jq -r .ipam.annotation)
+	test -n "$a" || error_quit "No annotation specified"
+	cmd_get_annotation $a > /dev/null   # $tmp/annotation created
+	local type=$(basename $nextipam)
+	cat $tmp/stdin | \
+		jq ".ipam = {type: \"$type\", $(cat $tmp/annotation) }" | $nextipam
+}
+
+##   error_quit [msg]
+##     Print an error in standard CNI json format and quit
+cmd_error_quit() {
+	local msg="node-annotation"
+	test -n "$1" && msg="$1"
+    cat <<EOF
+{
+  "cniVersion": "0.4.0",
+  "code": 11,
+  "msg": "FAILED: $msg"
+}
+EOF
+	exit 1
+}
+
+##   my_node
+##     Print the own node object
+cmd_my_node() {
+	read_config
+	get_nodes
+	local machine_id=$(cat /etc/machine-id)
+	jq ".items[]|select(.status.nodeInfo.machineID == \"$machine_id\")" \
+		< $tmp/nodes
+}
+
+##   get_annotation [--node=node] <annotation>
+##     Print the value of the annotation in the K8s node object
+cmd_get_annotation() {
+	test -n "$1" || cmd_error_quit "Parameter missing"
+	read_config
+	get_nodes
+	if test -n "$__node"; then
+		jq ".items[]|select(.metadata.name == \"$__node\")" \
+			< $tmp/nodes > $tmp/mynode
+	else
+		local machine_id=$(cat /etc/machine-id)
+		jq ".items[]|select(.status.nodeInfo.machineID == \"$machine_id\")" \
+			< $tmp/nodes > $tmp/mynode
+	fi
+	test -s $tmp/mynode || cmd_error_quit "My node not found"
+	jq -r ".metadata.annotations.\"$1\"" < $tmp/mynode 2>&1 | \
+		tee $tmp/annotation | grep -q null && \
+		cmd_error_quit "Annotation not found"
+	cat $tmp/annotation
+}
+
+##
+# Get the command
+if test -n "$1"; then
+	cmd=$1
+	shift
+else
+	cmd=ipam
+fi
+grep -q "^cmd_$cmd()" $0 $hook || die "Invalid command [$cmd]"
+
+while echo "$1" | grep -q '^--'; do
+    if echo $1 | grep -q =; then
+	o=$(echo "$1" | cut -d= -f1 | sed -e 's,-,_,g')
+	v=$(echo "$1" | cut -d= -f2-)
+	eval "$o=\"$v\""
+    else
+	o=$(echo "$1" | sed -e 's,-,_,g')
+	eval "$o=yes"
+    fi
+    shift
+done
+unset o v
+long_opts=`set | grep '^__' | cut -d= -f1`
+
+# Execute command
+trap "die Interrupted" INT TERM
+cmd_$cmd "$@"
+status=$?
+rm -rf $tmp
+exit $status
