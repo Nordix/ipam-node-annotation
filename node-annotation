@@ -13,14 +13,14 @@ dir=$(dirname $0); dir=$(readlink -f $dir)
 tmp=/tmp/${prg}_$$
 
 die() {
-    echo "ERROR: $*" >&2
-    rm -rf $tmp
-    exit 1
+	echo "ERROR: $*" >&2
+	rm -rf $tmp
+	exit 1
 }
 help() {
-    grep '^##' $0 | cut -c3-
-    rm -rf $tmp
-    exit 0
+	grep '^##' $0 | cut -c3-
+	rm -rf $tmp
+	exit 0
 }
 echo "$1" | grep -qi "^help\|-h" && help
 
@@ -50,7 +50,7 @@ cmd_ipam() {
 	cat > $tmp/stdin
 	local a=$(cat $tmp/stdin | jq -r .ipam.annotation)
 	test -n "$a" || cmd_error_quit "No annotation specified"
-	cmd_get_annotation $a > /dev/null   # $tmp/annotation created
+	cmd_get_annotation $a > /dev/null	# $tmp/annotation created
 	local type=$(basename $nextipam)
 	cat $tmp/stdin | \
 		jq ".ipam = {type: \"$type\", $(cat $tmp/annotation) }" | $nextipam
@@ -61,13 +61,14 @@ cmd_ipam() {
 cmd_error_quit() {
 	local msg="node-annotation"
 	test -n "$1" && msg="$1"
-    cat <<EOF
+	cat <<EOF
 {
   "cniVersion": "0.4.0",
   "code": 11,
   "msg": "FAILED: $msg"
 }
 EOF
+	rm -rf $tmp
 	exit 1
 }
 
