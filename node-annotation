@@ -49,7 +49,7 @@ cmd_ipam() {
 	mkdir -p $tmp
 	cat > $tmp/stdin
 	local a=$(cat $tmp/stdin | jq -r .ipam.annotation)
-	test -n "$a" || error_quit "No annotation specified"
+	test -n "$a" || cmd_error_quit "No annotation specified"
 	cmd_get_annotation $a > /dev/null   # $tmp/annotation created
 	local type=$(basename $nextipam)
 	cat $tmp/stdin | \
