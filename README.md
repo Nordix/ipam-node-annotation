@@ -18,8 +18,8 @@ Example:
 }
 ```
 And in the node object:
-```json
-# kubectl get node vm-002 -o json | jq .metadata.annotations
+```
+# kubectl get node $(hostname) -o json | jq .metadata.annotations
 {
   "example.com/ipvlan-ranges": "ranges: [[{\"subnet\": \"172.16.5.0/24\"}]]",
   "node.alpha.kubernetes.io/ttl": "0",
@@ -67,7 +67,7 @@ Configuration is in `json` format and is read from
 `kubeconfig` is needed unless `$KUBECONFIG` is defined. `nextipam` is
 optional.
 
-**NOTE**; a "key" must only contain character that are valid in a
+**NOTE**; a "key" must only contain characters that are valid in a
   shell script variable. That means no dash (-).
 
 
@@ -96,7 +96,7 @@ some things on a cluster.
    get_annotation [--node=node] <annotation>
      Print the value of the annotation in the K8s node object
 
-# kubectl annotate node vm-002 example.com/ipvlan-ranges="\"ranges\": [
+# kubectl annotate node $(hostname) example.com/ipvlan-ranges="\"ranges\": [
   { \"subnet\": \"4000::16.0.0.0/120\" },
   { \"subnet\": \"16.0.0.0/24\" }
 ]"
