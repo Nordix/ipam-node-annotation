@@ -152,8 +152,10 @@ If you have [Multus](https://github.com/k8snetworkplumbingwg/multus-cni)
 running in [kind](https://kind.sigs.k8s.io/) there are some steps to make
 `node-annotation` work.
 
+First copy the `node-annotation` to "/opt/cni/bin" on all workers.
+
 Only the controller have a kubeconfig at "/etc/kubernetes/admin.conf".
-Create one at the workers with and configure `node-annotation` to use it;
+Create one at the workers and configure `node-annotation` to use it;
 
 ```
 kind get kubeconfig --name --internal | \
