@@ -107,7 +107,7 @@ some things on a cluster.
 ]
 ```
 
-
+A test of the entire function;
 ```
 # cat > test.cfg <<EOF
 {
@@ -143,4 +143,50 @@ cat test.cfg | /opt/cni/bin/node-annotation
     ]
   }
 }
+```
+
+
+## Kind
+
+If you have [Multus](https://github.com/k8snetworkplumbingwg/multus-cni)
+running in [kind](https://kind.sigs.k8s.io/) there are some steps to make
+`node-annotation` work.
+
+Only the controller have a kubeconfig at "/etc/kubernetes/admin.conf".
+Create one at the workers with and configure `node-annotation` to use it;
+
+```
+kind get kubeconfig --name --internal | \
+  docker exec -i worker tee /etc/kubernetes/kubeconfig > /dev/null
+echo "{ \"kubeconfig\": \"/etc/kubernetes/kubeconfig\" }" | docker exec -i worker \
+  tee /etc/cni/node-annotation.conf > /dev/null
+# (repeat for all workers)
+```
+
+The Multus kubeconfig (/etc/cni/net.d/multus.d/multus.kubeconfig)
+can't be used due to restrictions.
+
+Now you can annotate the workers and create a NAD. Example;
+```
+kubectl annotate node worker example.com/bridge="\"ranges\": [
+  [{ \"subnet\":\"4000::16.0.0.0/120\", \"rangeStart\":\"4000::16.0.0.0\" , \"rangeEnd\":\"4000::16.0.0.7\"}],
+  [{ \"subnet\":\"16.0.0.0/24\", \"rangeStart\":\"16.0.0.0\" , \"rangeEnd\":\"16.0.0.7\"}]
+]"
+cat | kubectl apply -f - <<EOF
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: meridio-bridge
+spec:
+  config: '{
+    "cniVersion": "0.4.0",
+    "type": "bridge",
+    "bridge": "cbr2",
+    "isGateway": true,
+    "ipam": {
+      "type": "node-annotation",
+      "annotation": "example.com/bridge"
+    }
+  }'
+EOF
 ```
