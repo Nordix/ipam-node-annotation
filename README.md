@@ -43,7 +43,7 @@ example above will result in;
 This gives you the freedom to use any `host-local` configuration.
 
 For now `node-annotation` is implemented as a shell script. It is
-intended mainly for testing, but if it's consider useful it can be
+intended mainly for testing, but if it's considered useful it can be
 rewritten in `go` and be made more rubust an effective. PR's are welcome.
 
 
@@ -52,7 +52,7 @@ rewritten in `go` and be made more rubust an effective. PR's are welcome.
 `node-annotation` shall be installed in the cbi-bin directory, usually
 "/opt/cni/bin". `node-annotation` must be able to get the K8s node
 objects using `kubectl get nodes -o json` and analyze with [jq](
-https://stedolan.github.io/jq/)
+https://stedolan.github.io/jq/).
 
 Configuration is in `json` format and is read from
 `/etc/cni/node-annotation.conf` or `$NODE_ANNOTATION_CFG`. Example;
@@ -158,7 +158,7 @@ Only the controller have a kubeconfig at "/etc/kubernetes/admin.conf".
 Create one at the workers and configure `node-annotation` to use it;
 
 ```
-kind get kubeconfig --name --internal | \
+kind get kubeconfig --internal | \
   docker exec -i worker tee /etc/kubernetes/kubeconfig > /dev/null
 echo "{ \"kubeconfig\": \"/etc/kubernetes/kubeconfig\" }" | docker exec -i worker \
   tee /etc/cni/node-annotation.conf > /dev/null
