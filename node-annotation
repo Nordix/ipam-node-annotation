@@ -34,6 +34,7 @@ read_config() {
 	test -r $cfg || return 0
 	eval $(jq -r 'to_entries|.[]|.key + "=" + .value' < $cfg)
 	test -n "$kubeconfig" && export KUBECONFIG=$kubeconfig
+	test -n "$log" && error_log=$log
 	read_config=yes
 }
 get_nodes() {
@@ -52,6 +53,7 @@ cmd_ipam() {
 	test -n "$a" || cmd_error_quit "No annotation specified"
 	cmd_get_annotation $a > /dev/null	# $tmp/annotation created
 	local type=$(basename $nextipam)
+	test -n "$log" && echo "Ipam from annotation: [$a]" >> $log
 	cat $tmp/stdin | \
 		jq ".ipam = {type: \"$type\", $(cat $tmp/annotation) }" | $nextipam
 }
@@ -68,6 +70,7 @@ cmd_error_quit() {
   "msg": "FAILED: $msg"
 }
 EOF
+	test -n "$error_log" && echo "ERROR: $msg" >> $error_log
 	rm -rf $tmp
 	exit 1
 }
