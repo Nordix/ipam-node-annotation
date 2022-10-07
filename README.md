@@ -28,11 +28,12 @@ And in the node object:
 ```
 
 The `node-annotation` ipam is a wrapper for the [host-local](
-https://www.cni.dev/plugins/current/ipam/host-local/) ipam. *Anything*
-in the annotation will be inserted in a `host-local` config. In the
-figure everything in bold is taken from the annotation.
+https://www.cni.dev/plugins/current/ipam/host-local/) ipam (by
+default). *Anything* in the annotation will be inserted in a
+`host-local` config. In the figure everything in bold is taken from
+the annotation.
 
-<img src="node-annotation-plugin.svg" width="70%" />
+<img src="node-annotation-plugin.svg" width="85%" />
 
 This gives you the freedom to use any `host-local` configuration.
 
