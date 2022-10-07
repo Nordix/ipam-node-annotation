@@ -29,27 +29,21 @@ And in the node object:
 
 The `node-annotation` ipam is a wrapper for the [host-local](
 https://www.cni.dev/plugins/current/ipam/host-local/) ipam. *Anything*
-in the annotation will be inserted in a `host-local` config. The
-example above will result in;
+in the annotation will be inserted in a `host-local` config. In the
+figure everything in bold is taken from the annotation.
 
-```json
-{
-  "ipam": {
-    "type": "host-local",
-    "ranges": [[{"subnet": "172.16.5.0/24"}]]
-  }
-}
-```
+<img src="node-annotation-plugin.svg" width="70%" />
+
 This gives you the freedom to use any `host-local` configuration.
 
 For now `node-annotation` is implemented as a shell script. It is
 intended mainly for testing, but if it's considered useful it can be
-rewritten in `go` and be made more rubust an effective. PR's are welcome.
+rewritten in `go` and be made more rubust and effective. PR's are welcome.
 
 
 ## Usage
 
-`node-annotation` shall be installed in the cbi-bin directory, usually
+`node-annotation` shall be installed in the cni-bin directory, usually
 "/opt/cni/bin". `node-annotation` must be able to get the K8s node
 objects using `kubectl get nodes -o json` and analyze with [jq](
 https://stedolan.github.io/jq/).
@@ -65,7 +59,7 @@ Configuration is in `json` format and is read from
 ```
 
 `kubeconfig` is needed unless `$KUBECONFIG` is defined. `nextipam` is
-optional.
+optional and may be used to chain with another plugin than `host-local`.
 
 **NOTE**; a "key" must only contain characters that are valid in a
   shell script variable. That means no dash (-).
@@ -159,8 +153,8 @@ Create one at the workers and configure `node-annotation` to use it;
 
 ```
 kind get kubeconfig --internal | \
-  docker exec -i worker tee /etc/kubernetes/kubeconfig > /dev/null
-echo "{ \"kubeconfig\": \"/etc/kubernetes/kubeconfig\" }" | docker exec -i worker \
+  docker exec -i kind-worker tee /etc/kubernetes/kubeconfig > /dev/null
+echo "{ \"kubeconfig\": \"/etc/kubernetes/kubeconfig\" }" | docker exec -i kind-worker \
   tee /etc/cni/node-annotation.conf > /dev/null
 # (repeat for all workers)
 ```
