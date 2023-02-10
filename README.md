@@ -57,7 +57,7 @@ https://github.com/kubernetes/kubernetes/issues/109814#issuecomment-1138840270).
   "isDefaultGateway": true,
   "ipam": {
     "type": "kube-node",
-	"kubeconfig": "/etc/kubernetes/kubeconfig",
+    "kubeconfig": "/etc/kubernetes/kubeconfig",
     "dataDir": "/run/container-ipam-state/k8snet",
     "ipv4-namespaces": [
         "old-application"
@@ -81,8 +81,8 @@ if `kube-node` is used to assign addresses on interfaces which are
 https://github.com/k8snetworkplumbingwg/multus-cni), the address
 ranges (subnets) can be specified in an annotation on the node object.
 
-```bash
-# kubectl annotate node vm-002 kube-node.nordix.org/net1=172.20.2.0/24,fd00::2:0:0/96
+```
+kubectl annotate node vm-002 kube-node.nordix.org/net1=172.20.2.0/24,fd00::2:0:0/96
 ```
 
 ```json
