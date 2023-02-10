@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alpine
+spec:
+  selector:
+    matchLabels:
+      app: alpine
+  replicas: 8
+  template:
+    metadata:
+      labels:
+        app: alpine
+      annotations:
+        k8s.v1.cni.cncf.io/networks: '[
+            { "name": "bridge2", "namespace": "default" }
+        ]'
+    spec:
+      containers:
+      - name: alpine
+        image: docker.io/library/alpine:latest
+        imagePullPolicy: IfNotPresent
+        command: ["nc", "-lk", "-p", "5001", "-s", "::", "-e", "hostname"]
+        securityContext:
+          privileged: true
+        ports:
+        - containerPort: 5001

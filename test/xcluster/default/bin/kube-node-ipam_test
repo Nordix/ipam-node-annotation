@@ -1,0 +1,190 @@
+#! /bin/sh
+##
+## kube-node-ipam_test --
+##
+##   Test script for kube-node-ipam executed in xcluster.
+##
+## Commands;
+##
+
+prg=$(basename $0)
+dir=$(dirname $0); dir=$(readlink -f $dir)
+me=$dir/$prg
+tmp=/tmp/${prg}_$$
+
+. /etc/profile
+test -n "$DOMAIN" || DOMAIN=xcluster
+test -n "$PREFIX" || PREFIX=1000::1
+yamld=/etc/kubernetes/kube-node-ipam
+
+die() {
+	echo "ERROR: $*" >&2
+	rm -rf $tmp
+	exit 1
+}
+help() {
+	grep '^##' $0 | cut -c3-
+	rm -rf $tmp
+	exit 0
+}
+test -n "$1" || help
+echo "$1" | grep -qi "^help\|-h" && help
+
+log() {
+	echo "$prg: $*" >&2
+}
+dbg() {
+	test -n "$__verbose" && echo "$prg: $*" >&2
+}
+
+cmd_tcase_check_namespaces() {
+	test_namespaces
+}
+cmd_tcase_check_nodes() {
+	test_nodes
+}
+cmd_tcase_vip_routes() {
+	tcase "Set VIP routes (ECMP)"
+	vip_route
+}
+##   tcase_start_multus
+##     Load the Multus NAD CRDs
+cmd_tcase_start_multus() {
+	tcase "Load the Multus NAD CRDs"
+	local ydir=/etc/kubernetes/multus
+	kubectl create -f $ydir/multus-crd.yaml || tdie "multus-crd"
+	kubectl create -n kube-system -f $ydir/multus-crd-bridge.yaml \
+		|| tdie "multus-crd-bridge"
+}
+##   tcase_start_servers
+##     Start application servers and a svc
+cmd_tcase_start_servers() {
+	tcase "Start application servers and a svc"
+	$kubectl create -f $yamld/nad-bridge1.yaml || tdie NAD
+	$kubectl create -f $yamld/alpine.yaml || tdie alpine
+	$kubectl create -f $yamld/svc.yaml || tdie svc
+	assign-lb-ip -svc alpine -ip 10.0.0.0,$PREFIX:10.0.0.0
+	test_deployment alpine 60
+}
+##   tcase_create_ipam_cache [name]
+##     Manually create ipam cache files
+cmd_tcase_create_ipam_cache() {
+	local name=bridge1
+	test -n "$1" && name=$1
+	tcase "Manually create ipam cache files [$name]"
+	local f=/var/lib/cni/networks/$name/kube-node.json
+	local i=$(mynode)
+	mkdir -p $(dirname $f)
+	cat > $f <<EOF
+{
+  "type": "host-local",
+  "ranges": [
+   [{ "subnet": "30.0.$i.0/24" }],
+   [{ "subnet": "fd00::30.0.$i.0/120" }]
+  ]
+}
+EOF
+}
+##   tcase_annotate_nodes [--all-ipv4]
+##     Set "example.com/bridge1-ranges". All nodes gets IPv6 ranges, but
+##     only <vm-002 gets IPv4, override with --all-ipv4
+cmd_tcase_annotate_nodes() {
+	local subnets
+	local mynode=$(mynode)
+	if test "$__all_ipv4" = "yes"; then
+		subnets="$PREFIX:30.0.$mynode.0/120,30.0.$mynode.0/24"
+	else
+		subnets=$PREFIX:30.0.$mynode.0/120
+		test $mynode -lt 3 && subnets="$subnets,30.0.$mynode.0/24"
+	fi
+	tcase "Annotate nodes [$subnets]"
+	kubectl annotate node $(hostname) example.com/bridge1-ranges="$subnets" \
+		|| tdie "kubectl annotate"
+}
+##   tcase_alpine_ipv4
+##     Deploy PODs in the "old-application" NS to get ipv4 addresses and in
+##     in "default" to get only ipv6
+cmd_tcase_alpine_ipv4() {
+	$kubectl create -f $yamld/nad-bridge2.yaml || tdie NAD
+	kubectl create -f $yamld/alpine2.yaml || tdie
+	kubectl create namespace old-application || tdie
+	kubectl create -n old-application -f $yamld/alpine2.yaml || tdie
+	test_deployment alpine 60
+	kubectl="kubectl -n old-application"
+	test_deployment alpine 60
+}
+##   tcase_collect_addresses [namespace]
+##     Collect global addresses from interface "net1" in Alpine PODs.
+##     Stored in "/tmp/<ns>/<pod>".
+cmd_tcase_collect_addresses() {
+	local ns=default
+	test -n "$1" && ns=$1
+	tcase "Collect global addresses in NS [$ns]"
+	local outd=/tmp/$ns
+	mkdir -p $outd
+	kubectl="kubectl -n $ns"
+	local pod f
+	for pod in $($kubectl get pods -l app=alpine -o name); do
+		f=$outd/$(basename $pod)
+		$kubectl exec $pod -- ip addr show dev net1 | grep global \
+			| tr -s ' ' , | cut -d, -f3 > $f
+	done
+}
+##   tcase_check_addresses <namespace> <ipv4|ipv6|dual>
+##     Check collected addresses
+cmd_tcase_check_addresses() {
+	tcase "Check collected addresses [$@]"
+	test -n "$2" || tdie "Parameter missing"
+	local ns=$1
+	local family=$2
+	local d=/tmp/$ns f pod
+	for f in $(find $d -type f); do
+		pod=$(basename $f)
+		echo "POD $pod"
+		cat $f
+		case $family in
+			ipv4)
+				test $(cat $f | wc -l) -ne 1 && tdie "Too many addresses $pod"
+				grep -q : $f && tdie "IPv6 in $pod";;
+			ipv6)
+				test $(cat $f | wc -l) -ne 1 && tdie "Too many addresses $pod"
+				grep -q : $f || tdie "No IPv6 in $pod";;
+			dual)
+				test $(cat $f | wc -l) -ne 2 && tdie "Not 2 addresses in $pod"
+				grep -q : $f || tdie "No IPv6 in $pod"
+				grep -qF . $f || tdie "No IPv4 in $pod";;
+			*)
+				tdie "Unknown family [$family]"
+		esac
+	done
+}
+
+. /usr/lib/xctest
+indent='  '
+
+##
+# Get the command
+cmd=$1
+shift
+grep -q "^cmd_$cmd()" $0 || die "Invalid command [$cmd]"
+
+while echo "$1" | grep -q '^--'; do
+	if echo $1 | grep -q =; then
+		o=$(echo "$1" | cut -d= -f1 | sed -e 's,-,_,g')
+		v=$(echo "$1" | cut -d= -f2-)
+		eval "$o=\"$v\""
+	else
+		o=$(echo "$1" | sed -e 's,-,_,g')
+		eval "$o=yes"
+	fi
+	shift
+done
+unset o v
+long_opts=`set | grep '^__' | cut -d= -f1`
+
+# Execute command
+trap "die Interrupted" INT TERM
+cmd_$cmd "$@"
+status=$?
+rm -rf $tmp
+exit $status

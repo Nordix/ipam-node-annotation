@@ -1,4 +1,115 @@
-# IPAM CNI-plugin - node-annotation
+# IPAM CNI-plugin - kube-node and node-annotation
+
+`Kube-node` and `node-annotation` are IPAM [CNI-plugins](
+https://github.com/containernetworking/cni) that assigns IP addresses
+to PODs based on the Kubernetes node object. `Node-annotation` is an
+experimental plugin written with shell scripts. It is kept as a
+reference. `Kube-node` is written in go and should be prefered.
+
+For addresses on the main Kubernetes network, `eth0` in PODs, the
+address ranges (subnets) are taken from `node.spec.podCIDRs`. This is
+automatically generated if the `kube-controller-manager` is started
+with `--allocate-node-cidrs=true`. Example:
+
+```bash
+# kubectl get node vm-002 -o json | jq .spec.podCIDRs
+[
+  "11.0.1.0/24",
+  "1100:0:0:1::/64"
+]
+```
+
+```json
+{
+  "name": "k8snet",
+  "cniVersion": "1.0.0",
+  "isDefaultGateway": true,
+  "ipam": {
+    "type": "kube-node",
+	"kubeconfig": "/etc/kubernetes/kubeconfig",
+    "dataDir": "/run/container-ipam-state/k8snet"
+  }
+}
+```
+
+A few things should be noted. `Kube-node` must be able to read node
+objects from the K8s API-server, so it must have a working
+`kubeconfig`. This may be omitted if the kubeconfig can be found in
+other ways, for instance using the `$KUBECONFIG` environment variable.
+
+`Kube-node` delegates address allocation to the [host-local](
+https://www.cni.dev/plugins/current/ipam/host-local/) so the `dataDir`
+should be set to a directory that is cleared on node reboot (e.g. a
+`tmpfs`).
+
+
+
+## Limit IPv4 address allocation
+
+In large clusters IPv4 addresses may become a [limiting resource](
+https://github.com/kubernetes/kubernetes/issues/109814#issuecomment-1138840270).
+`Kube-node` can be configured to only assign IPv4 address to some namespaces.
+
+```json
+{
+  "name": "k8snet",
+  "cniVersion": "1.0.0",
+  "isDefaultGateway": true,
+  "ipam": {
+    "type": "kube-node",
+	"kubeconfig": "/etc/kubernetes/kubeconfig",
+    "dataDir": "/run/container-ipam-state/k8snet",
+    "ipv4-namespaces": [
+        "old-application"
+    ]
+  }
+}
+```
+
+**WARNING**: If this is used, Kubernetes must be configured to use
+IPv6 addresses for access to the API-server and as default for
+services. This is done by specifying an IPv6 address for the
+`--advertise-address` and set an IPv6 address first in
+`--service-cluster-ip-range` when the `kube-apiserver` is started.
+
+
+
+## Secondary networks
+
+if `kube-node` is used to assign addresses on interfaces which are
+*not* the Kubernetes network, for instance interfaces added with [Multus](
+https://github.com/k8snetworkplumbingwg/multus-cni), the address
+ranges (subnets) can be specified in an annotation on the node object.
+
+```bash
+# kubectl annotate node vm-002 kube-node.nordix.org/net1=172.20.2.0/24,fd00::2:0:0/96
+```
+
+```json
+{
+  "name": "net1",
+  "cniVersion": "1.0.0",
+  "isDefaultGateway": true,
+  "ipam": {
+    "type": "kube-node",
+	"kubeconfig": "/etc/kubernetes/kubeconfig",
+    "dataDir": "/run/container-ipam-state/net1",
+    "annotation": "kube-node.nordix.org/net1"
+  }
+}
+```
+
+## Build
+
+```
+./build.sh      # Print help
+./build.sh binaries
+```
+
+
+
+
+## The node-annotation IPAM
 
 The `node-annotation` is an IPAM [CNI-plugin](
 https://github.com/containernetworking/cni) that reads the addresses
@@ -38,11 +149,10 @@ the annotation.
 This gives you the freedom to use any `host-local` configuration.
 
 For now `node-annotation` is implemented as a shell script. It is
-intended mainly for testing, but if it's considered useful it can be
-rewritten in `go` and be made more rubust and effective. PR's are welcome.
+intended mainly for testing.
 
 
-## Usage
+### Usage
 
 `node-annotation` shall be installed in the cni-bin directory, usually
 "/opt/cni/bin". `node-annotation` must be able to get the K8s node
@@ -67,7 +177,7 @@ optional and may be used to chain with another plugin than `host-local`.
 
 
 
-## Manual Testing
+### Manual Testing
 
 The `node-annotation` script can be invoked with a parameter to test
 some things on a cluster.
@@ -141,7 +251,7 @@ cat test.cfg | /opt/cni/bin/node-annotation
 ```
 
 
-## Kind
+### Kind
 
 If you have [Multus](https://github.com/k8snetworkplumbingwg/multus-cni)
 running in [kind](https://kind.sigs.k8s.io/) there are some steps to make
