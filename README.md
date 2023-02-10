@@ -26,7 +26,7 @@ with `--allocate-node-cidrs=true`. Example:
   "isDefaultGateway": true,
   "ipam": {
     "type": "kube-node",
-	"kubeconfig": "/etc/kubernetes/kubeconfig",
+    "kubeconfig": "/etc/kubernetes/kubeconfig",
     "dataDir": "/run/container-ipam-state/k8snet"
   }
 }
@@ -92,7 +92,7 @@ kubectl annotate node vm-002 kube-node.nordix.org/net1=172.20.2.0/24,fd00::2:0:0
   "isDefaultGateway": true,
   "ipam": {
     "type": "kube-node",
-	"kubeconfig": "/etc/kubernetes/kubeconfig",
+    "kubeconfig": "/etc/kubernetes/kubeconfig",
     "dataDir": "/run/container-ipam-state/net1",
     "annotation": "kube-node.nordix.org/net1"
   }
