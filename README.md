@@ -89,7 +89,7 @@ kubectl annotate node vm-002 kube-node.nordix.org/net1=172.20.2.0/24,fd00::2:0:0
 {
   "name": "net1",
   "cniVersion": "1.0.0",
-  "isDefaultGateway": true,
+  "isDefaultGateway": false,
   "ipam": {
     "type": "kube-node",
     "kubeconfig": "/etc/kubernetes/kubeconfig",
@@ -98,6 +98,8 @@ kubectl annotate node vm-002 kube-node.nordix.org/net1=172.20.2.0/24,fd00::2:0:0
   }
 }
 ```
+Note that `isDefaultGateway` is set to "false" for secondary networks.
+
 
 ## Build
 
