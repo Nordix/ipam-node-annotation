@@ -43,7 +43,7 @@ func main() {
 
 	in := app.ReadCniConfigIn(ctx) // (will exit on failure)
 
-	if in.IPAM.LogFile != "" && in.IPAM.LogFile != "stdout" {
+	if in.IPAM != nil && in.IPAM.LogFile != "" && in.IPAM.LogFile != "stdout" {
 		zlogger, err := log.ZapLogger(in.IPAM.LogFile, in.IPAM.LogLevel)
 		if err == nil {
 			ctx = log.NewContext(ctx, zlogger)

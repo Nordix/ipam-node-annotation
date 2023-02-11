@@ -68,7 +68,9 @@ func ReadCniConfigIn(ctx context.Context) *CniConfigIn {
 		util.CniErrorExit(
 			ctx, err, cnitypes.ErrDecodingFailure, "Decode stdin")
 	}
-	util.CniVersion = in.CNIVersion
+	if in.CNIVersion != "" {
+		util.CniVersion = in.CNIVersion
+	}
 	return &in
 }
 
@@ -81,6 +83,20 @@ func Main(ctx context.Context, in *CniConfigIn) {
 			"Started", "CNI_COMMAND", os.Getenv("CNI_COMMAND"),
 			"CNI_ARGS", os.Getenv("CNI_ARGS"),
 			"CniConfigIn", in)
+	}
+	if in.IPAM == nil {
+		// This is acceptable for CNI_COMMAND=VERSION
+		if os.Getenv("CNI_COMMAND") == "VERSION" {
+			_ = execChained(ctx, nil)
+			return
+		} else {
+			err := fmt.Errorf("No IPAM found")
+			util.CniErrorExit(
+				ctx, err, cnitypes.ErrDecodingFailure, "Decode stdin")
+		}
+	}
+	if in.IPAM.KubeConfig != "" {
+		os.Setenv("KUBECONFIG", in.IPAM.KubeConfig)
 	}
 
 	o := newOutIpam(ctx, in)
@@ -104,7 +120,7 @@ func Main(ctx context.Context, in *CniConfigIn) {
 		o.writeCache(ctx)
 	}
 
-	err := o.execChained(ctx, o.computeOutData(ctx))
+	err := execChained(ctx, o.computeOutData(ctx))
 	if err != nil {
 		o.deleteCache()
 		util.CniErrorExit(ctx, err, 100, "Invoke host-local ipam")
@@ -236,7 +252,7 @@ func (o *outIpam) deleteCache() {
 	_ = os.Remove(o.cache)
 }
 
-func (o *outIpam) execChained(ctx context.Context, out *cniConfigOut) error {
+func execChained(ctx context.Context, out *cniConfigOut) error {
 	// Get the path to the chained ipam
 	rawExec := invoke.RawExec{}
 	pluginPath, err := rawExec.FindInPath(
@@ -252,7 +268,7 @@ func (o *outIpam) execChained(ctx context.Context, out *cniConfigOut) error {
 		panic(err)
 	}
 
-	// Invoke the chained ipam (usually "host-local")
+	// Invoke the chained ipam ("host-local")
 	res, err := rawExec.ExecPlugin(ctx, pluginPath, stdin, os.Environ())
 	if err != nil {
 		return err

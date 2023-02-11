@@ -38,7 +38,7 @@ objects from the K8s API-server, so it must have a working
 other ways, for instance using the `$KUBECONFIG` environment variable.
 
 `Kube-node` delegates address allocation to the [host-local](
-https://www.cni.dev/plugins/current/ipam/host-local/) so the `dataDir`
+https://www.cni.dev/plugins/current/ipam/host-local/) ipam, so the `dataDir`
 should be set to a directory that is cleared on node reboot (e.g. a
 `tmpfs`).
 

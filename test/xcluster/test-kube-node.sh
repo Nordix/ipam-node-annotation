@@ -1,8 +1,8 @@
 #! /bin/sh
 ##
-## kube-node-ipam.sh --
+## test-kube-node.sh --
 ##
-##   Help script for Nordix/xcluster-cni/test/kube-node-ipam
+##   Help script for Nordix/github.com/Nordix/ipam-node-annotation
 ##
 
 prg=$(basename $0)

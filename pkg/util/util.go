@@ -123,14 +123,14 @@ func (o *realNodeReader) GetNodes(ctx context.Context) ([]k8s.Node, error) {
 // GetNode Reads and returns a node object. Only one object is read, making
 // this more efficient than call GetNodes() and FindNode()
 func (o *realNodeReader) GetNode(ctx context.Context, name string) (*k8s.Node, error) {
-	if name != "" {
+	if name == "" {
 		return nil, fmt.Errorf("No name")
 	}
 
 	// Read just the selected node
 	api := GetApi(ctx)
 	nodes, err := api.Nodes().List(ctx, meta.ListOptions{
-		FieldSelector: "meta.name=" + name,
+		FieldSelector: "metadata.name=" + name,
 	})
 	if err != nil {
 		return nil, err
@@ -147,9 +147,23 @@ var CniVersion = "0.1.0"
 
 // CniError Returns a CNI formatted error message
 func CniError(ctx context.Context, err error, code uint, msg string) string {
-	return fmt.Sprintf(
-		`{"cniVersion":"%s","code": %d,"msg":"%s","details":"%v"}`,
-		CniVersion, code, msg, err)
+	cnierr := struct {
+		CniVersion string `json:"cniVersion"`
+		Code uint `json:"code"`
+		Msg string `json:"msg"`
+		Details string `json:"details"`
+	}{
+		CniVersion: CniVersion,
+		Code: code,
+		Msg: msg,
+		Details: err.Error(),
+	}
+	out, err := json.Marshal(cnierr)
+	if err != nil {
+		return fmt.Sprintf(
+			`{"cniVersion":"%s","code": %d,"msg":"%s"}`, CniVersion, code, msg)
+	}
+	return string(out)
 }
 
 // CniErrorEmit Emits a CNI formatted error on stdout and exit
